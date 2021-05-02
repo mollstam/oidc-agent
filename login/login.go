@@ -42,8 +42,9 @@ type LoginAgent struct {
 	ClientSecret string
 	Audience     string
 
-	Endpoint   oauth2.Endpoint
-	ExtraScope []string
+	Endpoint        oauth2.Endpoint
+	ExtraScope      []string
+	ExtraAuthParams map[string]string
 }
 
 // populate missing fields as described in the struct definition comments
@@ -83,7 +84,14 @@ func (a *LoginAgent) PerformLogin(callbackPort int) (oauth2.TokenSource, error) 
 			// open a web browser and listen on the redirect URL port
 			conf.RedirectURL = fmt.Sprintf("http://localhost:%d", port)
 			aud := oauth2.SetAuthURLParam("audience", a.Audience)
-			url := conf.AuthCodeURL("state", oauth2.AccessTypeOffline, promptConsent, aud)
+			var opts []oauth2.AuthCodeOption
+			opts = append(opts, oauth2.AccessTypeOffline)
+			opts = append(opts, promptConsent)
+			opts = append(opts, aud)
+			for key, value := range a.ExtraAuthParams {
+				opts = append(opts, oauth2.SetAuthURLParam(key, value))
+			}
+			url := conf.AuthCodeURL("state", opts...)
 			if err := a.OpenBrowser(url); err == nil {
 				if code, err := handleCodeResponse(ln); err == nil {
 					token, err := conf.Exchange(oauth2.NoContext, code)

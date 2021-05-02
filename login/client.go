@@ -17,6 +17,7 @@ var (
 	providerEndpoint = command.Flag("provider-endpoint", "URL to provider").Short('p').Default("https://accounts.google.com").String()
 	callbackPort     = command.Flag("callback-port", "port to listen on for callbacks").Default("0").Int()
 	extraScope       = command.Flag("extra-scope", "request extra scope").Strings()
+	extraAuthParams  = command.Flag("auth-params", "Additional Auth URL params").StringMap()
 	audience         = command.Flag("audience", "request audience").String()
 )
 
@@ -38,12 +39,13 @@ func RunLogin() error {
 	}
 
 	login := &LoginAgent{
-		SkipBrowser:  *skipBrowser,
-		ClientID:     *clientID,
-		ClientSecret: *clientSecret,
-		Endpoint:     provider.Endpoint(),
-		ExtraScope:   *extraScope,
-		Audience:     *audience,
+		SkipBrowser:     *skipBrowser,
+		ClientID:        *clientID,
+		ClientSecret:    *clientSecret,
+		Endpoint:        provider.Endpoint(),
+		ExtraScope:      *extraScope,
+		ExtraAuthParams: *extraAuthParams,
+		Audience:        *audience,
 	}
 	ts, err := login.PerformLogin(*callbackPort)
 	if err != nil {
