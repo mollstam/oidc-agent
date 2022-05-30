@@ -9,61 +9,20 @@ import (
 	"net/http/httputil"
 	"os"
 	"strings"
+	"context"
+	"crypto/tls"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"time"
+	"math/big"
 
 	"github.com/toqueteos/webbrowser"
 	"golang.org/x/oauth2"
 )
 
 const redirectURIAuthCodeInTitleBar = "urn:ietf:wg:oauth:2.0:oob"
-
-const tlsCertificate = "-----BEGIN CERTIFICATE-----
-MIIDETCCAfkCFEdJ+xNmn+10I/Ruh7LTAvyCepX+MA0GCSqGSIb3DQEBCwUAMEUx
-CzAJBgNVBAYTAlNFMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRl
-cm5ldCBXaWRnaXRzIFB0eSBMdGQwHhcNMjIwNTMwMTQxNDIxWhcNMjMwNTMwMTQx
-NDIxWjBFMQswCQYDVQQGEwJTRTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UE
-CgwYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOC
-AQ8AMIIBCgKCAQEA5BDdqO5icZZuIG66bcvfS2PxEODz17HnC0zrIW7oUt4XsD6e
-Qe3m2t5uOJ8waJGeudl5QdfRmYQ32BjO+jot8gUFWFZeG7xH3B6ZqiTA3Qb2oMqW
-rIj9i7c2k3Iypc0pb7bznwXqTDFoM57LPNSaEL47fstf239rf6Ne8drfWP0H/yjk
-6yLR2ocqju3rKTOLx8DLPVe4mTaX7F65pI8RvRmZshOgeFcB86I+glB9a4t1dmVj
-dr7ZijnD3xr614R40JtNb/eqWzX2hYP6hNSSdx+XYqbFaDBgyc88LaxNUXEBiI2Q
-fSOjN14CGoQ/j8Fmgc7kpnL9lremFh62YNFDaQIDAQABMA0GCSqGSIb3DQEBCwUA
-A4IBAQBdnBVqja4Q9M/kikTNHcxhD4Vvy74qhjd3s750ZiDhPMk2jvkR0nSSOOB+
-wuShw0+JIYV3qQ+TfjRQTNZVfZ3sYn0KUtoNQCExsy3KXXWLC694zOOUSGjuKA0A
-h9KVG/OXOc7z5jm2nL0RjdOztcZXyIjYP63ZzphHNhWX83yvFY7z2vlR5Kz2MTrQ
-GE2i8LSfjwZayGVI74clKqn2WPJfzvIKQ7xyFFRPo622ioD3ngy0wrM/2JJZBgFq
-+ikgEAMkPDk6+sWKVdTfkZRBQnyjHjevmfHq2jWhtrgZj3ikHohI+10JBYvYWW6U
-a2sbzF3Mzgx4EoTAku/nk8yrMwkt
------END CERTIFICATE-----"
-
-const tlsPrivateKey = "-----BEGIN PRIVATE KEY-----
-MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDkEN2o7mJxlm4g
-brpty99LY/EQ4PPXsecLTOshbuhS3hewPp5B7eba3m44nzBokZ652XlB19GZhDfY
-GM76Oi3yBQVYVl4bvEfcHpmqJMDdBvagypasiP2LtzaTcjKlzSlvtvOfBepMMWgz
-nss81JoQvjt+y1/bf2t/o17x2t9Y/Qf/KOTrItHahyqO7espM4vHwMs9V7iZNpfs
-XrmkjxG9GZmyE6B4VwHzoj6CUH1ri3V2ZWN2vtmKOcPfGvrXhHjQm01v96pbNfaF
-g/qE1JJ3H5dipsVoMGDJzzwtrE1RcQGIjZB9I6M3XgIahD+PwWaBzuSmcv2Wt6YW
-HrZg0UNpAgMBAAECggEBAI7VtU14xzTmhuBPGPls5tNbq33rtSwQomgka1qMEHrd
-164s+YbHDX9kMVnK8VF8ahFxj4zaMs5XzXXMy8xRpbbeyCM0LEpomATXMVwrGpMT
-KmE3oDg8r7bSLx8XNXs7y8jIpzmgRcYkZ2N0/0qAyGDWE4LssoNRAS12Tx9f+ePL
-no1lOo8oVUVIP4lS+OdNhqqn80p2MqGN1+7z+oU1o14iamW559ZAtNUPa25GCSlb
-fLiihhVkD4lJHDf759LNivJEMRWkRQ/UI5zgCQOZ05cTQ2miFsPTJrk2Em724XlP
-HH07GXOHjVt3JI32d8MIMnpKXbIwGyGKiZPNzM1am+UCgYEA8ihX0gYFEvAxh4Vr
-+vKZBQC0MdZjjDy8r0MCGnr7uQ+vGWW2mEAcMHFbsZQC56UlSVfZ0KZ1uN/Z89au
-EiON3EK5d6zKED4tbaeyvft5u5Q+JsbLx8ImbHvvgLkxmKeqTMFKx4ZEgTO444II
-qrNxb2SHtfCTJXATWzru1H8pe08CgYEA8RpPKy3/M0HxdvGd0QnsxlT+moWzDs4s
-v0YTG9vUZTJUPN/0igfQeEVBw30CoBniYgG45MmsaNatpEeEyrkoERUU/TmuFLu7
-50U+DhqauwnU+z8rbXrERtfYXL0jmjxP7DR307HD1xg3yj65oSNj3uyMhRiyD/Zb
-RkHiUh3Ix8cCgYEAmecyCXVx/BtUH0GY4yEUR62u2I3dLt/bO7hmudW37mIdcxLF
-/fWg9NjW4gGj5v16uSZwdL+WyizbJLIoZ7bZDkgKABl9Qt2BmdOfMkeFksYgyhxG
-n2qxaPlLuo/5CYBmJ+ohULXxC/yHYXDfeT4atiU6a1O+8WhNpQnLiJpZDtkCgYEA
-volcJ3OiSo/Ck40+ewSs6dAhpVwjtX+aPU7TqyB/KboseC9EwhCK34FcB3GzsXLD
-RVC3HZeDeRavAzTB7LOGxnkyrSv4NspmJM7Dy8GaplWOyz+QwmRS2OmbQy72A93G
-C5UrXVEOw92PuXT4ni+prXKjWku57IN0foFyqhJ/qeECgYBrTW2fTG7DgsoqlkGJ
-rFMMRns/EhkN3JzWrN5H43to4wF0IuC8r9LNeKrS8Kre2NT7nu4Rul+mMuY89DG1
-H+eyyxCiFnR5h8znXz3Zh0riNfq1kf1gnzLkpH6DktwFx7qNoH51r6JhqvPh/zU/
-h1QHGuGpPf0o5JDtP6Ix1uRHCQ==
------END PRIVATE KEY-----"
 
 var promptConsent oauth2.AuthCodeOption = oauth2.SetAuthURLParam("prompt", "consent")
 
@@ -109,6 +68,92 @@ func (a *LoginAgent) init() {
 	}
 }
 
+type ServerTestHandler struct {
+	Stop chan bool;
+}
+
+func (h *ServerTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+    w.Write([]byte("Hello! Server test worked successfully!\n"))
+    h.Stop <- true
+}
+
+func GetCertificate() func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+    opts := Certopts{
+        RsaBits:   2048,
+        Host:      "localhost",
+        ValidFrom: time.Now(),
+    }
+    cert, err := generate(opts)
+    return func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+        if err != nil {
+            return nil, err
+        }
+        return cert, err
+    }
+}
+
+type Certopts struct {
+    RsaBits   int
+    Host      string
+    IsCA      bool
+    ValidFrom time.Time
+    ValidFor  time.Duration
+}
+
+func generate(opts Certopts) (*tls.Certificate, error) {
+
+    priv, err := rsa.GenerateKey(rand.Reader, opts.RsaBits)
+    if err != nil {
+        return nil, err
+    }
+
+    notAfter := opts.ValidFrom.Add(opts.ValidFor)
+
+    serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+    serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+    if err != nil {
+        return nil, err
+    }
+
+    template := x509.Certificate{
+        SerialNumber: serialNumber,
+        Subject: pkix.Name{
+            Organization: []string{"Acme Co"},
+        },
+        NotBefore: opts.ValidFrom,
+        NotAfter:  notAfter,
+
+        KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+        ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+        BasicConstraintsValid: true,
+    }
+
+    hosts := strings.Split(opts.Host, ",")
+    for _, h := range hosts {
+        if ip := net.ParseIP(h); ip != nil {
+            template.IPAddresses = append(template.IPAddresses, ip)
+        } else {
+            template.DNSNames = append(template.DNSNames, h)
+        }
+    }
+
+    if opts.IsCA {
+        template.IsCA = true
+        template.KeyUsage |= x509.KeyUsageCertSign
+    }
+
+    derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+    if err != nil {
+        return nil, err
+    }
+
+    return &tls.Certificate{
+        Certificate: [][]byte{derBytes},
+        PrivateKey:  priv,
+    }, nil
+}
+
 func (a *LoginAgent) PerformServerTest(callbackPort int) (error) {
 	a.init()
 
@@ -117,12 +162,55 @@ func (a *LoginAgent) PerformServerTest(callbackPort int) (error) {
 	if ln, port, err := getListener(a, callbackPort); err == nil {
 		defer ln.Close()
 		fmt.Fprintln(a.Out, "Running server test on port %d -- %v", port, ln.Addr())
-		greetAnyRequest(ln)
+
+		done := make(chan bool, 1)
+		srv := &http.Server{
+			Handler: &ServerTestHandler{done},
+			TLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+            	GetCertificate: GetCertificate(),
+			},
+		}
+		fmt.Fprintln(a.Out, "Starting Serve")
+		go func() {
+	        if err := srv.ServeTLS(ln, "", ""); err != nil {
+	        	fmt.Errorf("Serve err: %v\n")
+	        }
+	    }()
+
+	    <-done
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	    defer cancel()
+	    if err := srv.Shutdown(ctx); err != nil {
+	        fmt.Errorf("HTTP server error: %v\n", err)
+	    }
 	} else {
 		return err
 	}
 
 	return nil
+}
+
+type CodeResponseHandler struct {
+	Stop chan string;
+}
+
+func (h *CodeResponseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+
+	w.Header().Set("Content-Type", "text/plain")
+
+	// If the code couldn't be obtained, inform the user via the browser and return an error.
+	// TODO i18n?
+	if code == "" {
+		fmt.Printf("Code not present in response: %s", r.URL.String())
+		w.Write([]byte("ERROR: Authentication code not present in response, please retry with --no-browser.\n"))
+	} else {
+		w.Write([]byte("Success! You may now close your browser.\n"))
+	}
+
+    h.Stop <- code
 }
 
 // PerformLogin performs the auth dance necessary to obtain an
@@ -152,6 +240,53 @@ func (a *LoginAgent) PerformLogin(callbackPort int) (oauth2.TokenSource, error) 
 		// Attempt to receive the authorization code via redirect URL
 		if ln, port, err := getListener(a, callbackPort); err == nil {
 			defer ln.Close()
+
+			// open a web browser and listen on the redirect URL port
+			conf.RedirectURL = fmt.Sprintf("https://localhost:%d", port)
+			aud := oauth2.SetAuthURLParam("audience", a.Audience)
+			var opts []oauth2.AuthCodeOption
+			opts = append(opts, oauth2.AccessTypeOffline)
+			opts = append(opts, promptConsent)
+			opts = append(opts, aud)
+			for key, value := range a.ExtraAuthParams {
+				opts = append(opts, oauth2.SetAuthURLParam(key, value))
+			}
+			url := conf.AuthCodeURL("state", opts...)
+			if err := a.OpenBrowser(url); err == nil {
+				done := make(chan string, 1)
+				srv := &http.Server{
+					Handler: &CodeResponseHandler{done},
+					TLSConfig: &tls.Config{
+						InsecureSkipVerify: true,
+		            	GetCertificate: GetCertificate(),
+					},
+				}
+				go func() {
+			        if err := srv.ServeTLS(ln, "", ""); err != nil {
+			        	fmt.Errorf("Serve err: %v\n")
+			        }
+			    }()
+
+			    code := <-done
+
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			    defer cancel()
+			    if err := srv.Shutdown(ctx); err != nil {
+			        fmt.Errorf("HTTP server error: %v\n", err)
+			    } else {
+			    	fmt.Printf("CODE: %v\n", code)
+					token, err := conf.Exchange(oauth2.NoContext, code)
+					if err != nil {
+						return nil, err
+					}
+					return conf.TokenSource(oauth2.NoContext, token), nil
+				}
+			}
+		} else {
+			return nil, err
+		}
+		/*if ln, port, err := getListener(a, callbackPort); err == nil {
+			defer ln.Close()
 			fmt.Fprintln(a.Out, "DEBUG: Browser opened, listening to port %v", port)
 			// open a web browser and listen on the redirect URL port
 			conf.RedirectURL = fmt.Sprintf("http://localhost:%d", port)
@@ -175,7 +310,7 @@ func (a *LoginAgent) PerformLogin(callbackPort int) (oauth2.TokenSource, error) 
 			}
 		} else {
 			fmt.Fprintln(a.Out, "DEBUG: Error opening browser: %v", err)
-		}
+		}*/
 	}
 
 	// If we can't or shouldn't automatically retrieve the code via browser,
@@ -260,36 +395,6 @@ func handleCodeResponse(ln net.Listener) (string, error) {
 
 	resp.Body = getResponseBody("Success! You may now close your browser.")
 	return code, nil
-}
-
-func greetAnyRequest(ln net.Listener) error {
-	conn, err := ln.Accept()
-	if err != nil {
-		return err
-	}
-
-	srvConn := httputil.NewServerConn(conn, nil)
-	defer srvConn.Close()
-
-	req, err := srvConn.Read()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Received request %v", req)
-
-	resp := &http.Response{
-		StatusCode:    200,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Close:         true,
-		ContentLength: -1, // designates unknown length
-	}
-	defer srvConn.Write(req, resp)
-
-	resp.Body = getResponseBody("Hello! Server test worked successfully!")
-	return nil
 }
 
 // turn a string into an io.ReadCloser as required by an http.Response
