@@ -19,6 +19,7 @@ var (
 	extraScope       = command.Flag("extra-scope", "request extra scope").Strings()
 	extraAuthParams  = command.Flag("auth-params", "Additional Auth URL params").StringMap()
 	audience         = command.Flag("audience", "request audience").String()
+	serverTest		 = command.Flag("server-test", "test the loopback webserver capability").Bool()
 )
 
 // FullCommand will command line string
@@ -47,6 +48,12 @@ func RunLogin() error {
 		ExtraAuthParams: *extraAuthParams,
 		Audience:        *audience,
 	}
+
+	if *serverTest {
+		err := login.PerformServerTest(*callbackPort)
+		return err // if test we're done here no matter err or not
+	}
+
 	ts, err := login.PerformLogin(*callbackPort)
 	if err != nil {
 		return err
