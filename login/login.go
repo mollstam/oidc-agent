@@ -24,6 +24,8 @@ import (
 
 const redirectURIAuthCodeInTitleBar = "urn:ietf:wg:oauth:2.0:oob"
 
+const serverOverTLS = false
+
 var promptConsent oauth2.AuthCodeOption = oauth2.SetAuthURLParam("prompt", "consent")
 
 // LoginAgent implements the OAuth2 login dance, generating an Oauth2 access_token
@@ -161,7 +163,7 @@ func (a *LoginAgent) PerformServerTest(callbackPort int) (error) {
 
 	if ln, port, err := getListener(a, callbackPort); err == nil {
 		defer ln.Close()
-		fmt.Fprintln(a.Out, "Running server test on port %d -- %v", port, ln.Addr())
+		fmt.Fprintln(a.Out, "Running server test on port %d (address: %v)", port, ln.Addr())
 
 		done := make(chan bool, 1)
 		srv := &http.Server{
@@ -171,11 +173,18 @@ func (a *LoginAgent) PerformServerTest(callbackPort int) (error) {
             	GetCertificate: GetCertificate(),
 			},
 		}
-		fmt.Fprintln(a.Out, "Starting Serve")
 		go func() {
-	        if err := srv.ServeTLS(ln, "", ""); err != nil {
-	        	fmt.Errorf("Serve err: %v\n")
-	        }
+			if serverOverTLS {
+				fmt.Fprintln(a.Out, "Serving over TLS")
+				if err := srv.ServeTLS(ln, "", ""); err != nil {
+					fmt.Errorf("Serve err: %v\n")
+				}
+			} else {
+				fmt.Fprintln(a.Out, "Serving over plain text")
+				if err := srv.Serve(ln); err != nil {
+					fmt.Errorf("Serve err: %v\n")
+				}
+			}
 	    }()
 
 	    <-done
@@ -242,7 +251,11 @@ func (a *LoginAgent) PerformLogin(callbackPort int) (oauth2.TokenSource, error) 
 			defer ln.Close()
 
 			// open a web browser and listen on the redirect URL port
-			conf.RedirectURL = fmt.Sprintf("https://localhost:%d", port)
+			if serverOverTLS {
+				conf.RedirectURL = fmt.Sprintf("https://localhost:%d", port)
+			} else {
+				conf.RedirectURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+			}
 			aud := oauth2.SetAuthURLParam("audience", a.Audience)
 			var opts []oauth2.AuthCodeOption
 			opts = append(opts, oauth2.AccessTypeOffline)
@@ -262,9 +275,17 @@ func (a *LoginAgent) PerformLogin(callbackPort int) (oauth2.TokenSource, error) 
 					},
 				}
 				go func() {
-			        if err := srv.ServeTLS(ln, "", ""); err != nil {
-			        	fmt.Errorf("Serve err: %v\n")
-			        }
+					if serverOverTLS {
+						fmt.Fprintln(a.Out, "Serving over TLS")
+						if err := srv.ServeTLS(ln, "", ""); err != nil {
+							fmt.Errorf("Serve err: %v\n")
+						}
+					} else {
+						fmt.Fprintln(a.Out, "Serving over plain text")
+						if err := srv.Serve(ln); err != nil {
+							fmt.Errorf("Serve err: %v\n")
+						}
+					}
 			    }()
 
 			    code := <-done
